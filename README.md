@@ -154,6 +154,7 @@ The following resources were used as a single-use reference.
 
 |                                                                                     Title                                                                                      | Type |  Author   |
 |:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----:|:---------:|
+| [How to Develop a Custom Provider in Terraform](https://www.infracloud.io/blogs/developing-terraform-custom-provider) | Web | Saravanan Gnanaguru |
 | [Implement a provider with the Terraform Plugin Framework](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider) | Web  | HashiCorp |
 |                                                     [Terraform Providers](https://registry.terraform.io/browse/providers)                                                      | Web  | HashiCorp |
 | [GitHub Provider](https://registry.terraform.io/providers/integrations/github/latest/docs) | Web | HashiCorp |
