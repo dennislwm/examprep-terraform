@@ -28,6 +28,7 @@ The audience for this document includes:
 |:------------------------------:|:-----------------------------------:|:---------:|:---------:|:-------:|
 | Installation and Configuration | Set up your development environment |    R,A    |           |         |
 | Installation and Configuration |  Installing Terraform with `tfenv`  |           |    R,A    |         |
+|           Execution            |      Creating LifeCycle rules       |           |    R,A    |         |
 
 ---
 # 4. Prerequisites
@@ -148,13 +149,26 @@ on darwin_arm64
 </details>
 
 ---
+# 6. Execution
+## 6.1. Creating LifeCycle Rules
+
+This runbook should be performed by the DevSecOps.
+
+Terraform uses a lifecycle rule that aligns with an immutable infrastructure when provisioning resources. In other words, when updating a resource, Terraform will destroy the existing resource before replacing it with a new resource.
+
+However, there may be cases where you may want to override this default setting. The `lifecycle` block allows you to set the behaviour of Terraform when updating a resource:
+- `create_before_destroy`: (boolean) create a new resource first before destroying the old resource.
+- `prevent_destroy`: (boolean) resource cannot be destroyed during `apply` or `destroy`.
+- `ignore_changes`: (list of strings|`all`) do not update a resource for changes made to specific attributes in the list, or to `all` attributes.
+
+---
 # References
 
 The following resources were used as a single-use reference.
 
-|                                                                                     Title                                                                                      | Type |  Author   |
-|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----:|:---------:|
-| [How to Develop a Custom Provider in Terraform](https://www.infracloud.io/blogs/developing-terraform-custom-provider) | Web | Saravanan Gnanaguru |
-| [Implement a provider with the Terraform Plugin Framework](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider) | Web  | HashiCorp |
-|                                                     [Terraform Providers](https://registry.terraform.io/browse/providers)                                                      | Web  | HashiCorp |
-| [GitHub Provider](https://registry.terraform.io/providers/integrations/github/latest/docs) | Web | HashiCorp |
+|                                                                                     Title                                                                                      | Type |       Author        |
+|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----:|:-------------------:|
+|                             [How to Develop a Custom Provider in Terraform](https://www.infracloud.io/blogs/developing-terraform-custom-provider)                              | Web  | Saravanan Gnanaguru |
+| [Implement a provider with the Terraform Plugin Framework](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider) | Web  |      HashiCorp      |
+|                                                     [Terraform Providers](https://registry.terraform.io/browse/providers)                                                      | Web  |      HashiCorp      |
+|                                           [GitHub Provider](https://registry.terraform.io/providers/integrations/github/latest/docs)                                           | Web  |      HashiCorp      |
