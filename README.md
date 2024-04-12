@@ -323,6 +323,8 @@ The following resources were used as a single-use reference.
 
 |                                                                                     Title                                                                                      | Type |       Author        |
 |:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----:|:-------------------:|
+|                                        [My First Terraform Provider](https://blog.revolve.team/2018/02/23/my-first-terraform-provider)                                         | Web  |     Marc Falzon     |
+|                                  [Beginner's guide to creating a Terraform Provider](https://www.integralist.co.uk/posts/terraform-provider)                                   | Web  |   Mark McDonnell    |
 |                             [How to Develop a Custom Provider in Terraform](https://www.infracloud.io/blogs/developing-terraform-custom-provider)                              | Web  | Saravanan Gnanaguru |
 | [Implement a provider with the Terraform Plugin Framework](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider) | Web  |      HashiCorp      |
 |                                                     [Terraform Providers](https://registry.terraform.io/browse/providers)                                                      | Web  |      HashiCorp      |
