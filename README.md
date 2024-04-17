@@ -32,6 +32,7 @@ The audience for this document includes:
 |           Execution            |        Constraining a Provider version        |           |    R,A    |         |
 |           Execution            |  Creating identical resources using `count`   |           |    R,A    |         |
 |           Execution            | Creating identical resources using `for_each` |           |    R,A    |         |
+|           Execution            |     Mocking AWS Provider using Localstack     |           |    R,A    |         |
 
 ---
 # 4. Prerequisites
@@ -316,8 +317,26 @@ pets = {
 }
 ```
 
+## 6.5. Mocking AWS Provider using Localstack
+
+This runbook should be performed by the DevSecOps.
+
+1. Create a `provider.tf` file and add the following code:
+
+```diff
+provider "aws" {
+  region                      = "us-east-1"
++ skip_credentials_validation = true
++ skip_requesting_account_id  = true
+
++ endpoints {
++   iam                       = "http://localhost:4566"
++ }
+}
+```
+
 ---
-# References
+# 8. References
 
 The following resources were used as a single-use reference.
 
