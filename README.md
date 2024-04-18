@@ -28,11 +28,14 @@ The audience for this document includes:
 |:------------------------------:|:---------------------------------------------:|:---------:|:---------:|:-------:|
 | Installation and Configuration |      Set up your development environment      |    R,A    |           |         |
 | Installation and Configuration |       Installing Terraform with `tfenv`       |           |    R,A    |         |
+| Installation and Configuration |        Constraining a Provider version        |           |    R,A    |         |
+| Installation and Configuration |     Configuring a Remote Backend with S3      |           |    R,A    |         |
+| Installation and Configuration |      Mocking a Remote Backend with Minio      |           |    R,A    |         |
 |           Execution            |           Creating LifeCycle rules            |           |    R,A    |         |
-|           Execution            |        Constraining a Provider version        |           |    R,A    |         |
 |           Execution            |  Creating identical resources using `count`   |           |    R,A    |         |
 |           Execution            | Creating identical resources using `for_each` |           |    R,A    |         |
 |           Execution            |     Mocking AWS Provider using Localstack     |           |    R,A    |         |
+|    Maintenance and Updates     |        Managing a Terraform state file        |           |    R,A    |         |
 
 ---
 # 4. Prerequisites
@@ -152,6 +155,92 @@ on darwin_arm64
 ```
 </details>
 
+## 5.3. Constraining a Provider version
+
+This runbook should be performed by the DevSecOps.
+
+1. You can use `version` to constraint the version of a provider to a specific version. For example:
+
+```tf
+terraform {
+  required_providers {
+    local = {
+      source = "hashicorp/local"
+      version = "1.4.0"
+    }
+  }
+}
+```
+
+2. You can use a logical operator to change the behaviour of `version`.
+  - `!=`: do not use version, e.g. `version = "!= 1.4.0"`.
+  - "<": below version.
+  - ">": above version.
+
+3. You can use a combination of logical operators to constraint the `version`. For example, `version = "> 1.2.0, < 2.0.0, != 1.4.0"`.
+
+4. You can use a `~` operator to constraint the `version` to the last digit of a semantic `version`.
+  - `~> x.x`: greedy minor version, e.g. `version = "~> 1.2"` will use the latest version that is `1.x` and below `2.0`.
+  - `~> x.x.x`: greedy revision version, e.g. `version = "~> 1.2.1"` will use the latest version that is `1.2.x` and below `1.3`.
+
+## 5.4. Configuring a Remote Backend with S3
+
+This runbook should be performed by the DevSecOps.
+
+1. You can use a resource `terraform.backend` to configure a remote backend for Terraform state file. For example:
+
+```tf
+terraform {
+  backend "s3" {
+    bucket         = "terraform-state-bucket-01"
+    key            = "finance/terraform.tfstate"
+    region         = "us-west-1"
+    dynamodb_table = aws_dynamodb_table.dynamodb-terraform-state-lock.name
+  }
+}
+```
+
+2. You can configure state locking by using a DynamoDB table with a primary key `LockID`, as follows:
+
+```tf
+resource "aws_dynamodb_table" "dynamodb-terraform-state-lock" {
+  name = "state-locking"
+  hash_key = "LockID"
+  read_capacity = 20
+  write_capacity = 20
+ 
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+```
+
+3. Save the above content in a file `terraform.tf`.
+
+## 5.5. Mocking a Remote Backend with Minio
+
+This runbook should be performed by the DevSecOps.
+
+1. Modify your resource `terraform.backend` and add the following code:
+
+```diff
+terraform {
+  backend "s3" {
+    bucket         = "terraform-state-bucket-01"
+    key            = "finance/terraform.tfstate"
+    region         = "us-west-1"
+    dynamodb_table = aws_dynamodb_table.dynamodb-terraform-state-lock.name
++   endpoint       = "http://172.16.238.105:9000"
+
++   force_path_style            = true
++   skip_credentials_validation = true
++   skip_metadata_api_check     = true
++   skip_region_validation      = true
+  }
+}
+```
+
 ---
 # 6. Execution
 ## 6.1. Creating LifeCycle Rules
@@ -204,35 +293,7 @@ resource "local_file" "pet" {
 }
 ```
 
-## 6.2. Constraining a Provider version
-
-This runbook should be performed by the DevSecOps.
-
-1. You can use `version` to constraint the version of a provider to a specific version. For example:
-
-```tf
-terraform {
-  required_providers {
-    local = {
-      source = "hashicorp/local"
-      version = "1.4.0"
-    }
-  }
-}
-```
-
-2. You can use a logical operator to change the behaviour of `version`.
-  - `!=`: do not use version, e.g. `version = "!= 1.4.0"`.
-  - "<": below version.
-  - ">": above version.
-
-3. You can use a combination of logical operators to constraint the `version`. For example, `version = "> 1.2.0, < 2.0.0, != 1.4.0"`.
-
-4. You can use a `~` operator to constraint the `version` to the last digit of a semantic `version`.
-  - `~> x.x`: greedy minor version, e.g. `version = "~> 1.2"` will use the latest version that is `1.x` and below `2.0`.
-  - `~> x.x.x`: greedy revision version, e.g. `version = "~> 1.2.1"` will use the latest version that is `1.2.x` and below `1.3`.
-
-## 6.3. Creating identical resources using `count`
+## 6.2. Creating identical resources using `count`
 
 This runbook should be performed by the DevSecOps.
 
@@ -271,7 +332,7 @@ pets = [
 ]
 ```
 
-## 6.4. Creating identical resources using `for_each`
+## 6.3. Creating identical resources using `for_each`
 
 This runbook should be performed by the DevSecOps.
 
@@ -317,7 +378,7 @@ pets = {
 }
 ```
 
-## 6.5. Mocking AWS Provider using Localstack
+## 6.4. Mocking AWS Provider using Localstack
 
 This runbook should be performed by the DevSecOps.
 
@@ -334,6 +395,31 @@ provider "aws" {
 + }
 }
 ```
+
+---
+# 7. Maintenance and Updates
+## 7.1. Managing a Terraform state file
+
+This runbook should be performed by the DevSecOps.
+
+1. Run `terraform state list` to show all resources in your Terraform state file. For example:
+
+```sh
+local_file.classics
+local_file.hall_of_fame
+local_file.new_shows
+local_file.top10
+```
+
+2. Run `terraform state show <RESOURCE>` to describe the resource in details.
+
+3. Run `terraform state mv <SOURCE> <DESTINATION>` to rename a resource within a state file, or to move a resource to another state file.
+
+4. Run `terraform state pull` to fetch and output a backend state file.
+
+5. Run `terraform state rm <RESOURCE>` to remove a resource from your state file.
+
+Note: Managing a Terraform state file does not change the real world infrastructure that was provisioned.
 
 ---
 # 8. References
