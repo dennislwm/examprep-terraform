@@ -35,6 +35,7 @@ The audience for this document includes:
 |           Execution            |  Creating identical resources using `count`   |           |    R,A    |         |
 |           Execution            | Creating identical resources using `for_each` |           |    R,A    |         |
 |           Execution            |     Mocking AWS Provider using Localstack     |           |    R,A    |         |
+|           Execution            |         Creating a Provisioner block          |           |    R,A    |         |
 |    Maintenance and Updates     |        Managing a Terraform state file        |           |    R,A    |         |
 
 ---
@@ -395,6 +396,86 @@ provider "aws" {
 + }
 }
 ```
+
+## 6.5. Creating a Provisioner block
+
+This runbook should be performed by the DevSecOps.
+
+Terraform recommends to use provisioner blocks sparingly due to a few reasons:
+* An increased complexity of the Terraform configuration.
+* No way for `terraform plan` to accurately model the provisioner.
+* Requires a `connection` block for `remote-exec`, which increases the security risk, similar to how Ansible runs its playbooks.
+
+As an alternative, Terraform recommends to use:
+* A native provisioner for some providers, e.g. `aws_instance.user_data`, which runs during creation time without a `connection` block.
+* A custom AMI that embeds the provisioner block within it.
+
+Having said that, you can use a `provisioner` block within a resource to run your custom script at the first boot of the instance.
+
+1. You can run a custom script at creation time (default) of a resource using a nested provisioner block.
+
+```tf
+resource "aws_instance" "cerberus" {
+  ami             = var.ami
+  instance_type   = var.instance_type
+  provisioner "remote-exec" {
+    inline = ["install-nginx.sh"]
+  }
+  connection {
+    type        = "ssh"
+    host        = self.public_ip
+    user        = "ubuntu"
+    private_key = file("/root/.ssh/web")
+  }
+  key_name                = aws_key_pair.web.id
+  vpc_security_group_ids  = [ aws_security_group.ssh-access.id ]
+}
+```
+
+2. You can run a custom script at destroy time of a resource using the attribute `when`.
+
+```diff
+resource "aws_instance" "cerberus" {
+  ami             = var.ami
+  instance_type   = var.instance_type
+  provisioner "remote-exec" {
++   when    = destroy
++   inline  = ["destroy-nginx.sh"]
+  }
+}
+```
+
+  **Note**: A failed execution of the provisioner will cause the `terraform apply` to fail and mark the resource as tainted.
+
+3. You can run a custom script to continue upon failure using the attribute `on_failure`.
+
+```diff
+resource "aws_instance" "cerberus" {
+  ami             = var.ami
+  instance_type   = var.instance_type
+  provisioner "remote-exec" {
+    when        = destroy
++   on_failure  = continue
+    inline      = ["install-nginx.sh"]
+  }
+}
+```
+
+  In this case, your resource will be created successfully even if the `provisioner` block fails.
+
+4. You can run a custom script at creation time of a resource using the `user_data` attribute, that is native to the `aws_instance` resource and does not require a connection block.
+
+```diff
+resource "aws_instance" "cerberus" {
+  ami             = var.ami
+  instance_type   = var.instance_type
++ user_data       = <<-EOF
++                   install-nginx.sh
++                   EOF
+}
+```
+
+> **Note**: The `user_data` when applied to an existing `aws_instance` will modify the resource without running the script, because this attribute will run only on the first instance boot.
 
 ---
 # 7. Maintenance and Updates
