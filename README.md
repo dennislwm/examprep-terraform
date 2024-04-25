@@ -37,6 +37,9 @@ The audience for this document includes:
 |           Execution            |     Mocking AWS Provider using Localstack     |           |    R,A    |         |
 |           Execution            |         Creating a Provisioner block          |           |    R,A    |         |
 |    Maintenance and Updates     |        Managing a Terraform state file        |           |    R,A    |         |
+|    Maintenance and Updates     |       Tainting a Resource to replace it       |           |    R,A    |         |
+|    Maintenance and Updates     |            Checking Terraform logs            |           |    R,A    |         |
+|    Maintenance and Updates     |   Importing a real resource into Terraform    |           |    R,A    |         |
 
 ---
 # 4. Prerequisites
@@ -501,6 +504,62 @@ local_file.top10
 5. Run `terraform state rm <RESOURCE>` to remove a resource from your state file.
 
 Note: Managing a Terraform state file does not change the real world infrastructure that was provisioned.
+
+## 7.2. Tainting a Resource to replace it
+
+This runbook should be performed by the DevSecOps.
+
+Whenever `terraform apply` fails to create a resource, it will be marked as tainted. A tainted resource will be destroyed and replaced with a new instance. In some cases, you may want to mark a resource as tainted manually.
+
+1. Run `terraform taint <RESOURCE>` to mark a resource as tainted.
+
+2. Run `terraform plan` and `terraform apply` to replace the above resource.
+
+3. Run `terraform untaint <RESOURCE>` to unmark a tainted resource.
+
+## 7.3. Checking Terraform logs
+
+This runbook should be performed by the DevSecOps.
+
+1. Use the environment variable `TF_LOG` to set a log level [`INFO`,`WARNING`,`ERROR`,`DEBUG`,`TRACE`]. For example:
+
+```sh
+export TF_LOG=TRACE
+```
+
+2. To persist the logs in a file, use the environment variable `TF_LOG_PATH`. For example:
+
+```sh
+export TF_LOG_PATH=/tmp/terraform.log
+```
+
+3. To stop persisting the logs in a file, type `unset TF_LOG_PATH`.
+
+## 7.4. Importing a real resource into Terraform
+
+This runbook should be performed by the DevSecOps.
+
+In some cases, you may want to import a real resource into Terraform. However, `terraform import` only adds a resource to your Terraform state file, but not to your `main.tf`.
+
+1. Edit your `main.tf` file and add an empty resource block as follows:
+
+```tf
+resource <RESOURCE_TYPE> <RESOURCE_NAME> {
+  # no arguments required
+}
+```
+
+2. Run `terraform import <RESOURCE_TYPE>.<RESOURCE_NAME> <RESOURCE_ID>` to add a real resource to your Terraform state file.
+
+3. Run `terraform show` to inspect the resource, and manually add the attributes to your resource block in `main.tf`.
+
+```diff
+resource <RESOURCE_TYPE> <RESOURCE_NAME> {
++ <ATTRIBUTE> = ""
+}
+```
+
+4. Run `terraform plan` to iteratively to refresh the Terraform state file, and add any missing attributes until no changes. The resource will be managed by Terraform going forward.
 
 ---
 # 8. References
