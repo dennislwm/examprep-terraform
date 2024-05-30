@@ -24,22 +24,28 @@ The audience for this document includes:
 # 3. User Personas
 ## 3.1 RACI Matrix
 
-|            Category            |                   Activity                    | Developer | DevSecOps | Manager |
-|:------------------------------:|:---------------------------------------------:|:---------:|:---------:|:-------:|
-| Installation and Configuration |      Set up your development environment      |    R,A    |           |         |
-| Installation and Configuration |       Installing Terraform with `tfenv`       |           |    R,A    |         |
-| Installation and Configuration |        Constraining a Provider version        |           |    R,A    |         |
-| Installation and Configuration |     Configuring a Remote Backend with S3      |           |    R,A    |         |
-| Installation and Configuration |      Mocking a Remote Backend with Minio      |           |    R,A    |         |
-|           Execution            |           Creating LifeCycle rules            |           |    R,A    |         |
-|           Execution            |  Creating identical resources using `count`   |           |    R,A    |         |
-|           Execution            | Creating identical resources using `for_each` |           |    R,A    |         |
-|           Execution            |     Mocking AWS Provider using Localstack     |           |    R,A    |         |
-|           Execution            |         Creating a Provisioner block          |           |    R,A    |         |
-|    Maintenance and Updates     |        Managing a Terraform state file        |           |    R,A    |         |
-|    Maintenance and Updates     |       Tainting a Resource to replace it       |           |    R,A    |         |
-|    Maintenance and Updates     |            Checking Terraform logs            |           |    R,A    |         |
-|    Maintenance and Updates     |   Importing a real resource into Terraform    |           |    R,A    |         |
+|            Category            |                          Activity                           | Developer | DevSecOps | Manager |
+|:------------------------------:|:-----------------------------------------------------------:|:---------:|:---------:|:-------:|
+| Installation and Configuration |             Set up your development environment             |    R,A    |           |         |
+| Installation and Configuration |              Installing Terraform with `tfenv`              |           |    R,A    |         |
+| Installation and Configuration |               Constraining a Provider version               |           |    R,A    |         |
+| Installation and Configuration |            Configuring a Remote Backend with S3             |           |    R,A    |         |
+| Installation and Configuration |             Mocking a Remote Backend with Minio             |           |    R,A    |         |
+|           Execution            |                  Creating LifeCycle rules                   |           |    R,A    |         |
+|           Execution            |         Creating identical resources using `count`          |           |    R,A    |         |
+|           Execution            |        Creating identical resources using `for_each`        |           |    R,A    |         |
+|           Execution            |            Mocking AWS Provider using Localstack            |           |    R,A    |         |
+|           Execution            |                Creating a Provisioner block                 |           |    R,A    |         |
+|           Execution            |          Including a source as a Terraform module           |           |    R,A    |         |
+|           Execution            | Interacting with built-in functions using Terraform Console |           |    R,A    |         |
+|           Execution            |            Using inline conditions in Terraform             |           |    R,A    |         |
+|    Maintenance and Updates     |  Managing multiple environments using Terraform Workspace   |           |    R,A    |         |
+|    Maintenance and Updates     |               Managing a Terraform state file               |           |    R,A    |         |
+|    Maintenance and Updates     |              Tainting a Resource to replace it              |           |    R,A    |         |
+|    Maintenance and Updates     |                   Checking Terraform logs                   |           |    R,A    |         |
+|    Maintenance and Updates     |          Importing a real resource into Terraform           |           |    R,A    |         |
+|    Maintenance and Updates     |       Using Terraform modules from a public registry        |           |    R,A    |         |
+|    Maintenance and Updates     |  Managing multiple environments using Terraform Workspace   |           |    R,A    |         |
 
 ---
 # 4. Prerequisites
@@ -480,6 +486,126 @@ resource "aws_instance" "cerberus" {
 
 > **Note**: The `user_data` when applied to an existing `aws_instance` will modify the resource without running the script, because this attribute will run only on the first instance boot.
 
+## 6.6. Including a source as a Terraform module
+
+This runbook should be performed by the DevSecOps.
+
+Terraform modules are analogous to libraries or packages in other programming languages.
+
+1. Assume `modules/payroll-app` consists of a Terraform configuration and `variables.tf` file.
+
+```hcl
+variable "app_region" {
+  type    = string
+}
+variable "bucket" {
+  type    = string
+  default = "flexit-payroll-alpha-22001c"
+}
+variable "ami" {
+  type    = string
+}
+```
+
+2. Create a `us_payroll/main.tf` file and add the following code:
+
+```diff
++module "us_payroll" {
++  source     = "../modules/payroll-app"
++  app_region = "us-east-1"
++  ami        = "ami-24e140119877avm"
++}
+```
+
+3. Run `terraform init` to download the `modules/payroll-app` in `us_payroll`.
+
+4. Resources created from `modules/payroll-app` can be referenced using `module.us_payroll`, for example:
+
+```hcl
+module.us_payroll.aws_dynamodb_table.payroll.db
+```
+
+## 6.7. Interacting with built-in functions using Terraform Console
+
+This runbook should be performed by the DevSecOps.
+
+1. Run `terraform console` to open an interactive console, which will load the state and variables of your Terraform configuration file.
+
+2. Run `file("root/terraform-projects/main.tf)` to read the contents of a file.
+
+```sh
+resource "aws_instance" "development" {
+  ami           = "ami-xxx"
+  instance_type = "t2.micro"
+}
+```
+
+3. Run `length(var.region)` to show the length of a variable.
+
+```sh
+3
+```
+
+4. Run `toset(var.region)` to transform a list to a set (no duplicates).
+
+```sh
+[
+  "ca-central-1",
+  "us-east-1"
+]
+```
+
+5. Run `max(var.num...)` to return the max, where `...` expands the `var.num`.
+
+```sh
+250
+```
+
+6. Run `split(",","ami-1,ami-2,ami-3")` to transform a delimited string to a list.
+
+```sh
+["ami-1","ami-2","ami-3"]
+```
+
+7. Run `index(var.ami, "ami-2")` to find the index of an item.
+
+```sh
+1
+```
+
+8. Run `contains(var.ami, "ami-4")` to check whether an item exists in a variable.
+
+```sh
+false
+```
+
+9. Run `keys(var.dict)` to convert a map `var "dict" {"us-east-1"="ami-1", "eu-west-1"="ami-2"}` to a list.
+
+```sh
+[
+  "us-east-1",
+  "eu-west-1"
+]
+```
+
+10. Run `lookup(var.dict, "us-east-2", "ami-100")` to find a value in a map using a key and default value.
+
+```sh
+"ami-100"
+```
+
+## 6.8. Using inline conditions in Terraform
+
+This runbook should be performed by the DevSecOps.
+
+1. Edit your `main.tf` file and add a resource block as follows:
+
+```diff
++resource "random_password" "password-generator" {
++  length = var.length<8 ? 8 : var.length
++}
+```
+
 ---
 # 7. Maintenance and Updates
 ## 7.1. Managing a Terraform state file
@@ -560,6 +686,72 @@ resource <RESOURCE_TYPE> <RESOURCE_NAME> {
 ```
 
 4. Run `terraform plan` to iteratively to refresh the Terraform state file, and add any missing attributes until no changes. The resource will be managed by Terraform going forward.
+
+---
+## 7.5. Using Terraform modules from a public registry
+
+This runbook should be performed by the DevSecOps.
+
+Terraform modules in the public registry can be categorized as either `verified` or `community`.
+- Modules with a `verified` blue tick are maintained and validated by HashiCorp.
+- Modules with a `community` without a blue tick are maintained by the open source community, and not validated by HashiCorp.
+
+1. Create a `variables.tf` file and add the following code:
+
+```diff
++variable "cloud_users" {
++     type = string
++     default = "andrew:ken:faraz:mutsumi:peter:steve:braja"
++}
+```
+
+2. Create a `main.tf` file and add the following code
+
+```diff
++module "cloud" {
++  source  = "terraform-aws-modules/iam/aws//modules/iam-user"
++  version = "5.39.1"
++  # insert the required variable here
++  count   = length(split(":", var.cloud_users))
++  name    = split(":", var.cloud_users)[count.index]
++  create_iam_access_key         = false
++  create_iam_user_login_profile = false
++}
+```
+
+3. Run `terraform init` to download the `terraform-aws-modules/iam` in your Terraform configuration file.
+
+## 7.6. Managing multiple environments using Terraform Workspace
+
+This runbook should be performed by the DevSecOps.
+
+1. Run `terraform workspace new dev` to create a new workspace in your Terraform configuration.
+
+Workspaces isolate their states within the same Terraform configuration project under a subfolder `terraform.tfstate.d`.
+
+```sh
+terraform.tfstate.d/
++- dev/
+   |- terraform.tfstate
+```
+
+2. Run `terraform workspace list` to display a list of workspaces.
+
+```sh
+default
+* dev
+```
+
+3. You can use `terraform.workspace` to reference the current workspace. For example,
+
+```diff
+resource "aws_instance" "web_server" {
+  # other variables
+  tags = {
++    Environment = terraform.workspace
+  }
+}
+```
 
 ---
 # 8. References
