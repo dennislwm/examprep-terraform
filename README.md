@@ -29,6 +29,7 @@ The audience for this document includes:
 | Installation and Configuration |             Set up your development environment             |    R,A    |           |         |
 | Installation and Configuration |              Installing Terraform with `tfenv`              |           |    R,A    |         |
 | Installation and Configuration |               Constraining a Provider version               |           |    R,A    |         |
+| Installation and Configuration |     Configuring a Provider multiple times with aliases      |           |    R,A    |         |
 | Installation and Configuration |            Configuring a Remote Backend with S3             |           |    R,A    |         |
 | Installation and Configuration |             Mocking a Remote Backend with Minio             |           |    R,A    |         |
 |           Execution            |                  Creating LifeCycle rules                   |           |    R,A    |         |
@@ -193,7 +194,33 @@ terraform {
   - `~> x.x`: greedy minor version, e.g. `version = "~> 1.2"` will use the latest version that is `1.x` and below `2.0`.
   - `~> x.x.x`: greedy revision version, e.g. `version = "~> 1.2.1"` will use the latest version that is `1.2.x` and below `1.3`.
 
-## 5.4. Configuring a Remote Backend with S3
+## 5.4. Configuring a Provider multiple times with aliases
+
+This runbook should be performed by the DevSecOps.
+
+1. You can have multiple configurations of the same provider using aliases. For example:
+
+```diff
+provider "aws" {
+  region          = "us-east-1"
+}
+
+provider "aws" {
+  region          = "ca-central-1"
++ alias           = "central"
+}
+```
+
+2. You can specify which provider to use in your resource block as follows:
+
+```diff
+resource "aws_key_pair" "beta" {
+  key_name        = "beta"
++ provider        = aws.central
+}
+```
+
+## 5.5. Configuring a Remote Backend with S3
 
 This runbook should be performed by the DevSecOps.
 
@@ -218,7 +245,7 @@ resource "aws_dynamodb_table" "dynamodb-terraform-state-lock" {
   hash_key = "LockID"
   read_capacity = 20
   write_capacity = 20
- 
+
   attribute {
     name = "LockID"
     type = "S"
@@ -228,7 +255,7 @@ resource "aws_dynamodb_table" "dynamodb-terraform-state-lock" {
 
 3. Save the above content in a file `terraform.tf`.
 
-## 5.5. Mocking a Remote Backend with Minio
+## 5.6. Mocking a Remote Backend with Minio
 
 This runbook should be performed by the DevSecOps.
 
