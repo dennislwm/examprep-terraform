@@ -40,6 +40,12 @@ The audience for this document includes:
 |           Execution            |          Including a source as a Terraform module           |           |    R,A    |         |
 |           Execution            | Interacting with built-in functions using Terraform Console |           |    R,A    |         |
 |           Execution            |            Using inline conditions in Terraform             |           |    R,A    |         |
+|           Execution            |   Defining Terraform input variables based on precedence    |           |    R,A    |         |
+|           Execution            |      Using a validation block within a variable block       |           |    R,A    |         |
+|           Execution            |          Defining a Terraform input variable type           |           |    R,A    |         |
+|           Execution            |            Defining a Terraform output variable             |           |    R,A    |         |
+|           Execution            | Creating an implicit or explicit dependency for a resource  |           |    R,A    |         |
+|           Execution            | Referencing an existing resource using Terraform data block |           |    R,A    |         |
 |    Maintenance and Updates     |  Managing multiple environments using Terraform Workspace   |           |    R,A    |         |
 |    Maintenance and Updates     |               Managing a Terraform state file               |           |    R,A    |         |
 |    Maintenance and Updates     |              Tainting a Resource to replace it              |           |    R,A    |         |
@@ -47,6 +53,7 @@ The audience for this document includes:
 |    Maintenance and Updates     |          Importing a real resource into Terraform           |           |    R,A    |         |
 |    Maintenance and Updates     |       Using Terraform modules from a public registry        |           |    R,A    |         |
 |    Maintenance and Updates     |  Managing multiple environments using Terraform Workspace   |           |    R,A    |         |
+|    Maintenance and Updates     |         Targeting a resource during Terraform apply         |           |    R,A    |         |
 
 ---
 # 4. Prerequisites
@@ -633,6 +640,165 @@ This runbook should be performed by the DevSecOps.
 +}
 ```
 
+## 6.9. Defining Terraform input variables based on precedence
+
+This runbook should be performed by the DevSecOps.
+
+1. Create a `variables.tf` file for your variable blocks.
+
+```tf
+variable "filename" {
+  type        = string
+  description = Name of file
+}
+variable "separator" {
+  default     = "."
+}
+```
+
+2. To make use of variable blocks, you can use `var` prefix. For example, `var.separator`.
+
+3. If you have not declare an input variable value, then `terraform apply` will prompt you for the value:
+
+```sh
+var.filename
+  Enter a value: myfile.txt
+```
+
+4. You can declare input variable values in several way, with the highest precedence in the top row:
+
+| Priority |              Declare Variable              |
+|:--------:|:------------------------------------------:|
+|    1     | `-var` or `-var-file` (command-line flags) |
+|    2     |    `*.auto.tfvars` (alphabetical order)    |
+|    3     |             `terraform.tfvars`             |
+|    4     | `TF_VAR_variable` (environment variables)  |
+
+For example, `terraform apply -var "filename=yourfile.txt"` will overwrite values set through environment variables.
+
+5. You can use any name for a variable except for:
+  - `source`
+  - `version`
+  - `providers`
+  - `count`
+  - `for_each`
+  - `lifecycle`
+  - `depends_on`
+  - `locals`
+
+## 6.10. Using a validation block within a variable block
+
+This runbook should be performed by the DevSecOps.
+
+1. You can add a validation block within your variable block to constraint its values. For example:
+
+```tf
+variable "ami" {
+  type        = string
+  description = "The id of the Amazon Machine Image (AMI) to use for the instance."
+  validation {
+    condition     = substr(var.ami, 0, 4) == "ami-"
+    error_message = "The AMI should start with \"ami-\"."
+  }
+}
+```
+
+## 6.11. Defining a Terraform input variable type
+
+This runbook should be performed by the DevSecOps.
+
+1. You can optionally define a type for your variable block, otherwise the default type is `any`.
+
+|    Type    |      Reference       |                        Example                         |
+|:----------:|:--------------------:|:------------------------------------------------------:|
+|   string   |   var.instancetype   |                       "t2.micro"                       |
+|   number   |   var.maxinstance    |                           2                            |
+|    bool    |    var.isinstance    |                          true                          |
+| list(type) |    var.server[0]     |                    ["web1", "web2"]                    |
+| map(type)  |  var.region["dev"]   |        { "dev"="us-east-1", "sit"="us-west-2" }        |
+|   tuple    |      var.web[0]      |                   ["web1", 3, true]                    |
+|   object   | var.myobj["food"][0] | { "name"="bella", "food"=["fish","chicken","turkey"] } |
+
+## 6.12. Defining a Terraform output variable
+
+This runbook should be performed by the DevSecOps.
+
+1. You can define a Terraform output variable using an output block with a required value.
+
+```tf
+output "public_ip" {
+  value       = aws_instance.db_jumphost.public_ip
+  description = "The Public IPv4 address of DB Jumphost"
+}
+```
+
+2. You can run `terraform output [variable]` to display a list of outputs or a specific variable.
+
+## 6.13. Creating an implicit or explicit dependency for a resource
+
+This runbook should be performed by the DevSecOps.
+
+1. You can create an implicit dependency from one resource to another in Terraform as follows:
+
+```diff
+resource "aws_instance" "cerberus" {
+  ami           = var.ami
+  instance_type = var.instance_type
++ key_name      = aws_key_pair.alpha.key_name
+}
+
+resource "aws_key_pair" "alpha" {
+  key_name      = "alpha"
+  public_key    = var.public_key
+}
+```
+
+2. The `aws_key_pair` will be created before the `aws_instance` during apply, while `terraform destroy` will delete the instance first before the key.
+
+3. You can create an explicit dependency with `depends_on` as follows:
+
+```diff
+resource "aws_instance" "db" {
+  ami           = var.db_ami
+  instance_type = var.db_instance_type
+}
+
+resource "aws_instance" "web" {
+  ami           = var.web_ami
+  instance_type = var_web_instance_type
++ depends_on    = [
++   aws_instance.db
++ ]
+}
+```
+
+4. The db instance will be created before the web instance during apply, while `terraform destroy` will delete the web first before the db instance.
+
+## 6.14. Referencing an existing resource using Terraform data block
+
+This runbook should be performed by the DevSecOps.
+
+1. You can define a Terraform data block to reference an existing resource that is not managed by Terraform. For example, you can identify the key with `key_name` attribute:
+
+```tf
+data "aws_key_pair" "cerberus-key" {
+  key_name      = "alpha"
+}
+```
+
+2. Alternatively, you can identify a resource using a `filter` block.
+
+```diff
+data "aws_key_pair" "cerberus-key" {
++ filter {
++   name        = "tag:project"
++   values      = ["cerberus"]
++ }
+}
+```
+
+3. You can reference any exported attribute from data with `data.aws_key_pair.cerberus-key.attribute`.
+
 ---
 # 7. Maintenance and Updates
 ## 7.1. Managing a Terraform state file
@@ -779,6 +945,18 @@ resource "aws_instance" "web_server" {
   }
 }
 ```
+
+## 7.7. Targeting a resource during Terraform apply
+
+This runbook should be performed by the DevSecOps.
+
+1. You can specify the argument `-target` to update only a specific resource. Terraform apply will not update any explicit or implicit dependencies when using this argument. For example:
+
+```sh
+terraform apply -target random_string.server-suffix
+```
+
+Note: Use the `-target` argument rarely.
 
 ---
 # 8. References
