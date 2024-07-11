@@ -46,6 +46,8 @@ The audience for this document includes:
 |           Execution            |            Defining a Terraform output variable             |           |    R,A    |         |
 |           Execution            | Creating an implicit or explicit dependency for a resource  |           |    R,A    |         |
 |           Execution            | Referencing an existing resource using Terraform data block |           |    R,A    |         |
+|           Execution            |            Using a locals block for DRY strategy            |           |    R,A    |         |
+|           Execution            |           Using a dynamic block for DRY strategy            |           |    R,A    |         |
 |    Maintenance and Updates     |  Managing multiple environments using Terraform Workspace   |           |    R,A    |         |
 |    Maintenance and Updates     |               Managing a Terraform state file               |           |    R,A    |         |
 |    Maintenance and Updates     |              Tainting a Resource to replace it              |           |    R,A    |         |
@@ -589,7 +591,7 @@ resource "aws_instance" "development" {
 ]
 ```
 
-5. Run `max(var.num...)` to return the max, where `...` expands the `var.num`.
+5. Run `max(var.num...)` to return the max, where `...` expands the set `var.num`.
 
 ```sh
 250
@@ -685,6 +687,15 @@ For example, `terraform apply -var "filename=yourfile.txt"` will overwrite value
   - `lifecycle`
   - `depends_on`
   - `locals`
+
+6. You cannot use other variables within your input variable (use locals instead). For example:
+
+```diff
+variable "instance_name" {
+  type        = string
+- default     = "${var.project_name}-server"
+}
+```
 
 ## 6.10. Using a validation block within a variable block
 
@@ -799,6 +810,89 @@ data "aws_key_pair" "cerberus-key" {
 
 3. You can reference any exported attribute from data with `data.aws_key_pair.cerberus-key.attribute`.
 
+## 6.15. Using a locals block for DRY strategy
+
+This runbook should be performed by the DevSecOps.
+
+1. You can add a `locals` block to define a reusable block. For example:
+
+```tf
+locals {
+  common_tags = {
+    Department  = "finance"
+    Project     = "cerberus"
+  }
+}
+
+resource "aws_instance" "db" {
+  ...
+  tags          = local.common_tag
+}
+```
+
+## 6.16. Using a dynamic block for DRY strategy
+
+This runbook should be performed by the DevSecOps.
+
+1. You can add a `dynamic` block together with a list variable to define multiple blocks of the same attribute. For example:
+
+```diff
+variable "ingress_ports" {
+  type          = list
+  default       = [22, 8080]
+}
+
+resource "aws_security_group" "backend-sg" {
+  name          = "backend-sg"
+  vpc_id        = aws_vpc.backend-vpc.id
++ dynamic "ingress" {
++   for_each      = var.ingress_ports
++   content {
++     from_port   = ingress.value
++     to_port     = ingress.value
++     protocol    = "tcp"
++     cidr_blocks = ["0.0.0.0/0"]
++   }
++ }
+}
+```
+
+2. You can optionally replace the default iterator within the dynamic block as follows:
+
+```diff
+resource "aws_security_group" "backend-sg" {
+  ...
+  dynamic "ingress" {
+    for_each      = var.ingress_ports
++   iterator      = port
+    content {
+-     from_port   = ingress.value
+-     to_port     = ingress.value
++     from_port   = port.value
++     to_port     = port.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+}
+```
+
+3. For the output block, you can use the splat (*) operator to iterate over the dynamic blocks as follows:
+
+```tf
+output "to_ports" {
+  value           = aws_security_group.backend-sg.ingress[*].to_port
+}
+```
+
+```sh
+$ terraform output
+to_ports = [
+  22,
+  8080
+]
+```
+
 ---
 # 7. Maintenance and Updates
 ## 7.1. Managing a Terraform state file
@@ -840,7 +934,7 @@ Whenever `terraform apply` fails to create a resource, it will be marked as tain
 
 This runbook should be performed by the DevSecOps.
 
-1. Use the environment variable `TF_LOG` to set a log level [`INFO`,`WARNING`,`ERROR`,`DEBUG`,`TRACE`]. For example:
+1. Use the environment variable `TF_LOG` to set a log level [`INFO`,`WARNING`,`ERROR`,`DEBUG`,`TRACE`, `JSON`]. For example:
 
 ```sh
 export TF_LOG=TRACE
