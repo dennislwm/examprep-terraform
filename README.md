@@ -32,6 +32,9 @@ The audience for this document includes:
 | Installation and Configuration |     Configuring a Provider multiple times with aliases      |           |    R,A    |         |
 | Installation and Configuration |            Configuring a Remote Backend with S3             |           |    R,A    |         |
 | Installation and Configuration |             Mocking a Remote Backend with Minio             |           |    R,A    |         |
+| Installation and Configuration |               Upgrading a Terraform Provider                |           |    R,A    |         |
+| Installation and Configuration |          Configuring a Remote Backend with Remote           |           |    R,A    |         |
+| Installation and Configuration |    Determining Whether Run is Local or Remote Workspace     |           |    R,A    |         |
 |           Execution            |                  Creating LifeCycle rules                   |           |    R,A    |         |
 |           Execution            |         Creating identical resources using `count`          |           |    R,A    |         |
 |           Execution            |        Creating identical resources using `for_each`        |           |    R,A    |         |
@@ -48,6 +51,7 @@ The audience for this document includes:
 |           Execution            | Referencing an existing resource using Terraform data block |           |    R,A    |         |
 |           Execution            |            Using a locals block for DRY strategy            |           |    R,A    |         |
 |           Execution            |           Using a dynamic block for DRY strategy            |           |    R,A    |         |
+|           Execution            |                      Creating a module                      |           |    R,A    |         |
 |    Maintenance and Updates     |  Managing multiple environments using Terraform Workspace   |           |    R,A    |         |
 |    Maintenance and Updates     |               Managing a Terraform state file               |           |    R,A    |         |
 |    Maintenance and Updates     |              Tainting a Resource to replace it              |           |    R,A    |         |
@@ -56,6 +60,7 @@ The audience for this document includes:
 |    Maintenance and Updates     |       Using Terraform modules from a public registry        |           |    R,A    |         |
 |    Maintenance and Updates     |  Managing multiple environments using Terraform Workspace   |           |    R,A    |         |
 |    Maintenance and Updates     |         Targeting a resource during Terraform apply         |           |    R,A    |         |
+|    Maintenance and Updates     |                 Publishing a public module                  |           |    R,A    |         |
 
 ---
 # 4. Prerequisites
@@ -284,6 +289,72 @@ terraform {
 +   skip_metadata_api_check     = true
 +   skip_region_validation      = true
   }
+}
+```
+
+## 5.7 Upgrading a Terraform Provider
+
+This runbook should be performed by the DevSecOps.
+
+1. Run `terraform init -upgrade` to re-check the Terraform Registry for newer acceptable provider versions.
+
+2. If available, Terraform downloads and saves them in a subdirectory under `.terraform/providers/`.
+
+> Warning: If any acceptable version of a given provider is installed elsewhere, other than the correct automatic downloads directory `.terraform/providers/`, `terraform init -upgrade` will not download a newer version of it.
+
+## 5.8. Configuring a Remote Backend with Remote
+
+This runbook should be performed by the DevSecOps. The `cloud` backend includes an improved user experience and more features than the `remote` backend.
+
+1. You can use a resource `terraform.backend` to configure a remote backend for Terraform state file. For example:
+  * **hostname**: (Optional) The remote backend hostname to connect to. Defaults to `app.terraform.io`.
+  * **organization**: (Required) The name of the organization containing the targeted workspaces.
+  * **workspaces**: (Required) A block specifying one or more workspaces to use.
+
+```tf
+terraform {
+  backend "remote" {
+    hostname      = "app.terraform.io"
+    organization  = "company"
+    workspaces {
+      name    = "my-app-prod"
+    }
+  }
+}
+```
+
+2. The remote backend can work with either a single remote Terraform workspace, or with multiple same prefixed workspaces, e.g. `networking-dev`, `networking-prd`. The `workspaces.name` or `workspaces.prefix` determines which mode is used.
+
+```tf
+terraform {
+  backend "remote" {
+    hostname      = "app.terraform.io"
+    organization  = "company"
+    workspaces {
+      prefix  = "my-app-"
+    }
+  }
+}
+```
+
+## 5.9. Determining Whether Run is Local or Remote Workspace
+
+This runbook should be performed by the DevSecOps. If you need to determine whether a run is local or remote workspace, use the HCP Terraform environment variable `HCP_TERRAFORM_RUN_ID`.
+
+1. Edit your `variables.tf` file.
+
+```tf
+variable "HCP_TERRAFORM_RUN_ID" {
+  type    = string
+  default = ""
+}
+```
+
+2. Edit your `outputs.tf` file.
+
+```tf
+output "remote_execution_determine" {
+  value = "Remote run environment? %{if var.HCP_TERRAFORM_RUN_ID != ""}Yes%{else}No this is local%{endif}!"
 }
 ```
 
@@ -893,6 +964,64 @@ to_ports = [
 ]
 ```
 
+## 6.17. Creating a module
+
+This runbook should be performed by the DevSecOps. Modules are the main way to package and reuse resource configurations with Terraform.
+
+Re-usable modules are defined using all the same configuration concepts we use in root modules.
+  * **Input variables** to accept values from the calling module.
+  * **Output variables** to return results to the calling module.
+  * **Resources** to define one or more infrastructure objects that the module will manage.
+
+1. Create a new directory and place one or more `.tf` files. We recommend keeping the module tree relatively flat.
+  * **Root module**: This is the only required element for the standard module structure. This should be the primary entrypoint for the module and is expected to be opinionated.
+  * **README**: The root module and any nested modules should have `README` files.
+  * **LICENSE**: The license under which the module is available.
+  * **`main.tf`**, **`variables.tf`**, **`outputs.tf`**: These are recommended files for a minimal module, even if they're empty. `main.tf` should be the primary entrypoint.
+  * **Variables and outputs should have description**: This is used for documentation that will be automatically generated.
+  * **Nested modules**: These should exist under the `modules/` subdirectory. Any nested module with a `README` is considered reusable by an external user, otherwise if it doesn't exist, it is considered for internal use only. If the root module includes calls to nested modules, they should use relative paths like `./modules/`.
+  * **Examples**: These should exist under the `examples/` subdirectory. Each example may have a `README` to explain the goal and usage of the example. Examples for submodules should also be placed in the root `examples/` subdirectory.
+
+2. Create a minimal standard module structure as follows. We recommend this minimal standard module structure to keep the module tree flat, with only one level of modules (calling module + minimal module).
+
+```sh
+tree minimal-module/
+.
+├── README.md
+├── main.tf
+├── variables.tf
+├── outputs.tf
+```
+
+3. Create a complete standard module structure as follows.
+
+```sh
+tree complete-module/
+.
+├── README.md
+├── main.tf
+├── variables.tf
+├── outputs.tf
+├── ...
+├── modules/
+│   ├── nestedA/
+│   │   ├── README.md
+│   │   ├── variables.tf
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   ├── nestedB/
+│   ├── .../
+├── examples/
+│   ├── exampleA/
+│   │   ├── main.tf
+│   ├── exampleB/
+│   ├── .../
+```
+
+4. Providers can be passed down to descendent modules in two ways:
+  * **Implicitly** through inheritance. This is specified using a `required_providers` block inside a `terraform` block. Each module must declare its own provider requirements so that Terraform can ensure that there is a single version of the provider that is compatible with all modules in the configuration.
+  * **Explicitly** via the `providers` argument within a `module` block. A reusable module containing its own provider configurations is not compatible with the `for_each`, `count`, and `depends_on` arguments.
+
 ---
 # 7. Maintenance and Updates
 ## 7.1. Managing a Terraform state file
@@ -982,6 +1111,11 @@ This runbook should be performed by the DevSecOps.
 Terraform modules in the public registry can be categorized as either `verified` or `community`.
 - Modules with a `verified` blue tick are maintained and validated by HashiCorp.
 - Modules with a `community` without a blue tick are maintained by the open source community, and not validated by HashiCorp.
+- The syntax for specifying a registry module is `<NAMESPACE>/<NAME>/<PROVIDER>`, for example, `hashicorp/consul/aws`.
+
+You can also use modules from a private registry, which has a source string like the public registry, but with an added hostname prefix.
+- The syntax for specifying a private registry module is `<HOSTNAME>/<NAMESPACE>/<NAME>/<PROVIDER>`.
+- You may also need to configure credentials to access modules in a private registry.
 
 1. Create a `variables.tf` file and add the following code:
 
@@ -1052,16 +1186,46 @@ terraform apply -target random_string.server-suffix
 
 Note: Use the `-target` argument rarely.
 
+## 7.8. Publishing a public module
+
+This runbook should be performed by the DevSecOps. The list below contains all the requirements for publishing a public module.
+  * **GitHub**: The module must be on a GitHub public repo.
+  * **Named `terraform-<PROVIDER>-<NAME>`**: The syntax must be a three-part format, where:
+    * `PROVIDER`: the main provider where it creates that infrastructure, e.g. `aws`.
+    * `NAME`: the type of infrastructure the module manages, e.g. `s3`.
+  * **Description**: The module description is populated using the GitHub public repo description.
+  * **Standard module structure**: The module must use a standard file and directory layout.
+  * **`x.y.z` tags for releases**: Release tag names must be a semantic version, which can optionally be prefixed with a `v`, for example, `v1.0.4` and `1.0.4`.
+
+1. Navigate to the Terraform Registry, and click the **Upload** link.
+2. If you're not signed in, this will ask you to connect with GitHub, and ask for access to public repositories. An email address is required so that you will receive alerts about your module.
+3. Select the repository of the module you want to add, and click **Publish Module**.
+4. The Terraform Registry uses GitHub tags to detect releases. To release a new version, create and push a new tag, and a webhook will notify the registry of the new version.
+5. If your new version doesn't appear, you may force a sync with GitHub by viewing your module on the registry and clicking **Resync Module** under the Manage Module dropdown.
+
 ---
 # 8. References
 
 The following resources were used as a single-use reference.
 
-|                                                                                     Title                                                                                      | Type |       Author        |
-|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----:|:-------------------:|
-|                                        [My First Terraform Provider](https://blog.revolve.team/2018/02/23/my-first-terraform-provider)                                         | Web  |     Marc Falzon     |
-|                                  [Beginner's guide to creating a Terraform Provider](https://www.integralist.co.uk/posts/terraform-provider)                                   | Web  |   Mark McDonnell    |
-|                             [How to Develop a Custom Provider in Terraform](https://www.infracloud.io/blogs/developing-terraform-custom-provider)                              | Web  | Saravanan Gnanaguru |
-| [Implement a provider with the Terraform Plugin Framework](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider) | Web  |      HashiCorp      |
-|                                                     [Terraform Providers](https://registry.terraform.io/browse/providers)                                                      | Web  |      HashiCorp      |
-|                                           [GitHub Provider](https://registry.terraform.io/providers/integrations/github/latest/docs)                                           | Web  |      HashiCorp      |
+|                              Title                              | Type |       Author        |
+|:---------------------------------------------------------------:|:----:|:-------------------:|
+|               [My First Terraform Provider][r01]                | Web  |     Marc Falzon     |
+|    [Beginner's guide to creating a Terraform Provider][r02]     | Web  |   Mark McDonnell    |
+|      [How to Develop a Custom Provider in Terraform][r03]       | Web  | Saravanan Gnanaguru |
+| [Implement a provider with the Terraform Plugin Framework][r04] | Web  |      HashiCorp      |
+|                   [Terraform Providers][r05]                    | Web  |      HashiCorp      |
+|                     [GitHub Provider][r06]                      | Web  |      HashiCorp      |
+|             [Configuration Language > Modules][r07]             | Web  |      HashiCorp      |
+|     [Registry Publishing > Finding and Using Modules][r08]      | Web  |      HashiCorp      |
+|                  [Backend block > remote][r09]                  | Web  |      HashiCorp      |
+
+[r01]: https://blog.revolve.team/2018/02/23/my-first-terraform-provider
+[r02]: https://www.integralist.co.uk/posts/terraform-provider
+[r03]: https://www.infracloud.io/blogs/developing-terraform-custom-provider
+[r04]: https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider
+[r05]: https://registry.terraform.io/browse/providers
+[r06]: https://registry.terraform.io/providers/integrations/github/latest/docs
+[r07]: https://developer.hashicorp.com/terraform/language/modules
+[r08]: https://developer.hashicorp.com/terraform/registry/modules/use
+[r09]: https://developer.hashicorp.com/terraform/language/backend/remote
